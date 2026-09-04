@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thermal Printer Demo</title>
+    <link rel="stylesheet" href="./demo.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <p class="eyebrow">Jenix Plugin Demo</p>
+        <h1>Thermal Printer Test Console</h1>
+        <p class="intro">
+          Minimal Android Capacitor screen for BLE scan, USB listing, connect, print, and disconnect.
+        </p>
+      </header>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Status</h2>
+          <button id="refresh-status" type="button" class="ghost">Refresh</button>
+        </div>
+        <dl class="status-grid">
+          <div>
+            <dt>Connection</dt>
+            <dd id="status-connection">disconnected</dd>
+          </div>
+          <div>
+            <dt>Transport</dt>
+            <dd id="status-transport">none</dd>
+          </div>
+          <div>
+            <dt>Printer</dt>
+            <dd id="status-printer">Unknown printer</dd>
+          </div>
+          <div>
+            <dt>Reconnect</dt>
+            <dd id="status-reconnect">n/a</dd>
+          </div>
+        </dl>
+        <p id="status-error" class="status-error" hidden></p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>BLE Printers</h2>
+          <div class="actions">
+            <button id="scan-ble" type="button">Scan BLE</button>
+            <button id="stop-ble" type="button" class="ghost">Stop</button>
+          </div>
+        </div>
+        <p class="hint">Uses 10-second scan windows and enables bounded reconnect on BLE connects.</p>
+        <div id="ble-list" class="device-list empty">No BLE devices loaded yet.</div>
+        <button id="connect-ble" type="button" class="wide">Connect Selected BLE</button>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>USB Printers</h2>
+          <button id="list-usb" type="button" class="ghost">List USB</button>
+        </div>
+        <p class="hint">Select a detected USB printer, then connect through Android USB permission flow.</p>
+        <div id="usb-list" class="device-list empty">No USB devices loaded yet.</div>
+        <button id="connect-usb" type="button" class="wide">Connect Selected USB</button>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Actions</h2>
+        </div>
+        <div class="actions">
+          <button id="print-test" type="button">Print Test</button>
+          <button id="disconnect" type="button" class="ghost">Disconnect</button>
+        </div>
+        <p id="banner" class="banner">Waiting for Capacitor plugin...</p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Event Log</h2>
+          <button id="clear-log" type="button" class="ghost">Clear</button>
+        </div>
+        <div id="log" class="log"></div>
+      </section>
+    </main>
+
+    <script type="module" src="./demo.js"></script>
+  </body>
+</html>

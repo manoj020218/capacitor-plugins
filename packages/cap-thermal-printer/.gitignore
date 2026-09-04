@@ -1,0 +1,19 @@
+node_modules
+dist
+coverage
+*.log
+.env
+.env.local
+
+# Android / Gradle build output
+android/build
+android/.gradle
+android/.cxx
+android/local.properties
+android/captures
+android/*.iml
+android/.idea
+
+# OS cruft
+.DS_Store
+Thumbs.db
