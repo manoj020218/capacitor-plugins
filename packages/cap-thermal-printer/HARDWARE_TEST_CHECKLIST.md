@@ -13,6 +13,7 @@ Use the standalone demo in `demo/` or an equivalent throwaway Capacitor shell wh
 - Connect with explicit `serviceUuid` and `writeCharacteristicUuid` when known.
 - Print a short raw receipt and verify output starts immediately.
 - Print a long raw receipt that exceeds one BLE packet and verify chunked output stays ordered.
+- Print a full receipt (500+ bytes, multiple chunks) on a BLE UART-bridge printer (e.g. ISSC/Microchip "Transparent UART", service `49535343-...`) and verify every line prints — GATT write acks alone don't confirm the printer received the data.
 - Print `printText`, `feed`, `cut`, and `openCashDrawer` and verify printer behavior.
 - Print `printQRCode` with ASCII content and verify it scans.
 - Print `printBarcode` with CODE128 data and verify it scans.
