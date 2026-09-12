@@ -16,9 +16,11 @@ fun buildDisconnectedStatusPayload() = JSObject().apply {
 fun toCombinedDeviceListPayload(
     bleDevices: List<BlePrinterDevice>,
     usbDevices: List<UsbPrinterDevice>,
+    classicDevices: List<BtClassicPrinterDevice>,
 ) = JSArray().apply {
     bleDevices.forEach { put(it.toJs()) }
     usbDevices.forEach { put(it.toJs()) }
+    classicDevices.forEach { put(it.toJs()) }
 }
 
 fun JSObject.putLastError(issue: PrinterConnectionIssue?) {

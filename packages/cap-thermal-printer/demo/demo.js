@@ -4,8 +4,10 @@ const state = {
   status: { connected: false, connectionState: "disconnected" },
   bleDevices: [],
   usbDevices: [],
+  classicDevices: [],
   selectedBleId: "",
   selectedUsbId: "",
+  selectedClassicId: "",
   scanning: false,
   busy: "",
   log: [],
@@ -26,6 +28,9 @@ const els = {
   connectBle: document.querySelector("#connect-ble"),
   listUsb: document.querySelector("#list-usb"),
   connectUsb: document.querySelector("#connect-usb"),
+  classicList: document.querySelector("#classic-list"),
+  listClassic: document.querySelector("#list-classic"),
+  connectClassic: document.querySelector("#connect-classic"),
   printTest: document.querySelector("#print-test"),
   disconnect: document.querySelector("#disconnect"),
   refreshStatus: document.querySelector("#refresh-status"),
@@ -51,6 +56,7 @@ async function init() {
   await registerListeners(plugin);
   await refreshStatus();
   await listUsbDevices();
+  await listClassicDevices();
 }
 
 function bindActions() {
@@ -59,6 +65,8 @@ function bindActions() {
   els.connectBle?.addEventListener("click", () => void connectBle());
   els.listUsb?.addEventListener("click", () => void listUsbDevices());
   els.connectUsb?.addEventListener("click", () => void connectUsb());
+  els.listClassic?.addEventListener("click", () => void listClassicDevices());
+  els.connectClassic?.addEventListener("click", () => void connectClassic());
   els.printTest?.addEventListener("click", () => void printDemoReceipt());
   els.disconnect?.addEventListener("click", () => void disconnectPrinter());
   els.refreshStatus?.addEventListener("click", () => void refreshStatus());
@@ -181,6 +189,28 @@ async function connectUsb() {
   });
 }
 
+async function listClassicDevices() {
+  await runAction("Listing paired Bluetooth Classic devices...", async (plugin) => {
+    const result = await plugin.getDevices({ transport: "bluetoothClassic" });
+    state.classicDevices = Array.isArray(result.devices) ? result.devices : [];
+    state.selectedClassicId = keepSelectedId(state.selectedClassicId, state.classicDevices);
+    pushLog(`Bluetooth Classic list refreshed: ${state.classicDevices.length} device(s).`);
+  }, { silent: true });
+}
+
+async function connectClassic() {
+  await runAction("Connecting Bluetooth Classic printer...", async (plugin) => {
+    if (!state.selectedClassicId) {
+      throw new Error("Select a paired Bluetooth Classic printer first.");
+    }
+    state.status = await plugin.connect({
+      transport: "bluetoothClassic",
+      deviceId: state.selectedClassicId,
+      timeoutMs: 15000,
+    });
+  });
+}
+
 async function printDemoReceipt() {
   await runAction("Printing test receipt...", async (plugin) => {
     state.status = await plugin.getStatus();
@@ -240,6 +270,7 @@ function render() {
   renderStatus();
   renderDeviceList(els.bleList, state.bleDevices, state.selectedBleId, "ble");
   renderDeviceList(els.usbList, state.usbDevices, state.selectedUsbId, "usb");
+  renderDeviceList(els.classicList, state.classicDevices, state.selectedClassicId, "bluetoothClassic");
   renderLog();
   const busy = Boolean(state.busy);
   els.scanBle.disabled = busy || state.scanning;
@@ -247,6 +278,8 @@ function render() {
   els.connectBle.disabled = busy || !state.selectedBleId;
   els.listUsb.disabled = busy;
   els.connectUsb.disabled = busy || !state.selectedUsbId;
+  els.listClassic.disabled = busy;
+  els.connectClassic.disabled = busy || !state.selectedClassicId;
   els.printTest.disabled = busy || !state.status.connected;
   els.disconnect.disabled = busy || state.status.connectionState === "disconnected";
   els.refreshStatus.disabled = busy;
@@ -268,9 +301,10 @@ function renderDeviceList(container, devices, selectedId, transport) {
   if (!container) {
     return;
   }
+  const label = transport === "bluetoothClassic" ? "Bluetooth Classic" : transport.toUpperCase();
   if (!devices.length) {
     container.className = "device-list empty";
-    container.textContent = `No ${transport.toUpperCase()} devices loaded yet.`;
+    container.textContent = `No ${label} devices loaded yet.`;
     return;
   }
 
@@ -291,7 +325,7 @@ function renderDeviceList(container, devices, selectedId, transport) {
             <span class="device-name">${escapeHtml(describeDevice(device))}</span>
           </span>
           <span class="device-meta">${escapeHtml(device.id)}</span>
-          <span class="device-meta">${escapeHtml(extras || transport.toUpperCase())}</span>
+          <span class="device-meta">${escapeHtml(extras || label)}</span>
         </label>
       </div>
     `;
@@ -302,6 +336,8 @@ function renderDeviceList(container, devices, selectedId, transport) {
       const value = event.target.value;
       if (transport === "ble") {
         state.selectedBleId = value;
+      } else if (transport === "bluetoothClassic") {
+        state.selectedClassicId = value;
       } else {
         state.selectedUsbId = value;
       }

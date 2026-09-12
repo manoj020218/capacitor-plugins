@@ -1,6 +1,8 @@
 import type {
   BleConnectionOptions,
   BlePrinterProfile,
+  BluetoothClassicConnectionOptions,
+  BluetoothClassicPrinterProfile,
   PrinterConnectionOptions,
   PrinterDevice,
   PrinterPaperWidth,
@@ -47,6 +49,14 @@ export function createPrinterProfile(device: PrinterDevice, options: CreatePrint
     });
   }
 
+  if (device.transport === 'bluetoothClassic') {
+    return normalizePrinterProfile({
+      ...base,
+      transport: 'bluetoothClassic',
+      deviceId: device.id,
+    });
+  }
+
   return normalizePrinterProfile({
     ...base,
     transport: 'usb',
@@ -89,6 +99,14 @@ export function normalizePrinterProfile(profile: PrinterProfile): PrinterProfile
     };
   }
 
+  if (profile.transport === 'bluetoothClassic') {
+    return {
+      ...base,
+      transport: 'bluetoothClassic',
+      deviceId: cleanRequired(profile.deviceId, 'deviceId'),
+    };
+  }
+
   return {
     ...base,
     transport: 'usb',
@@ -110,6 +128,15 @@ export function profileToConnectionOptions(profile: PrinterProfile): PrinterConn
       autoReconnect: normalized.autoReconnect,
       reconnectAttempts: normalized.reconnectAttempts,
       reconnectDelayMs: normalized.reconnectDelayMs,
+    };
+    return options;
+  }
+
+  if (normalized.transport === 'bluetoothClassic') {
+    const options: BluetoothClassicConnectionOptions = {
+      transport: 'bluetoothClassic',
+      deviceId: normalized.deviceId,
+      timeoutMs: normalized.timeoutMs,
     };
     return options;
   }

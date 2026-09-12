@@ -25,6 +25,7 @@ class ThermalPrinterPlugin : Plugin() {
     private lateinit var bleConnection: BlePrinterConnection
     private lateinit var usbConnection: UsbPrinterConnection
     private lateinit var usbMonitor: UsbPrinterMonitor
+    private lateinit var classicConnection: BtClassicPrinterConnection
     private val mainHandler = Handler(Looper.getMainLooper())
     private val scanTimeoutRunnable = Runnable { finishScan("timeout") }
     private val usbPermissionTimeoutRunnable = Runnable {
@@ -72,6 +73,23 @@ class ThermalPrinterPlugin : Plugin() {
                 }
             },
         )
+        classicConnection = BtClassicPrinterConnection(context, object : BtClassicConnectionListener {
+            override fun onConnected(snapshot: BtClassicConnectionSnapshot) {
+                lastTransport = "bluetoothClassic"
+                emitListenerEvent("connected", buildBtClassicStatusPayload(snapshot))
+            }
+
+            override fun onDisconnected(snapshot: BtClassicConnectionSnapshot) {
+                lastTransport = "bluetoothClassic"
+                emitListenerEvent("disconnected", buildBtClassicStatusPayload(snapshot))
+            }
+
+            override fun onConnectionError(message: String, code: String) {
+                lastTransport = "bluetoothClassic"
+                emitListenerEvent("connectionError", buildConnectionErrorPayload(message, code, "bluetoothClassic"))
+            }
+        })
+        classicConnection.start()
         usbMonitor = UsbPrinterMonitor(context, object : UsbPrinterListener {
             override fun onUsbAttached(device: UsbPrinterDevice) = emitListenerEvent("usbAttached", device.toJs())
 
@@ -106,6 +124,7 @@ class ThermalPrinterPlugin : Plugin() {
         bleConnection.shutdown()
         usbConnection.shutdown()
         usbMonitor.stop()
+        classicConnection.shutdown()
     }
 
     @PluginMethod
@@ -113,7 +132,8 @@ class ThermalPrinterPlugin : Plugin() {
         when (call.getString("transport")) {
             null, "ble" -> scanBle(call)
             "usb" -> scanUsb(call)
-            else -> call.reject("transport must be 'ble' or 'usb'.", "INVALID_ARGUMENT")
+            "bluetoothClassic" -> scanBtClassic(call)
+            else -> call.reject("transport must be 'ble', 'usb', or 'bluetoothClassic'.", "INVALID_ARGUMENT")
         }
     }
 
@@ -127,11 +147,21 @@ class ThermalPrinterPlugin : Plugin() {
     fun getDevices(call: PluginCall) {
         when (call.getString("transport")) {
             null -> call.resolve(JSObject().apply {
-                put("devices", toCombinedDeviceListPayload(bleScanner.getDevices(), usbMonitor.getDevices()))
+                put(
+                    "devices",
+                    toCombinedDeviceListPayload(
+                        bleScanner.getDevices(),
+                        usbMonitor.getDevices(),
+                        classicConnection.getBondedDevices(BtClassicScanConfig(namePrefix = null)),
+                    ),
+                )
             })
             "ble" -> call.resolve(JSObject().apply { put("devices", toBleDeviceListPayload(bleScanner.getDevices())) })
             "usb" -> call.resolve(JSObject().apply { put("devices", toUsbDeviceListPayload(usbMonitor.getDevices())) })
-            else -> call.reject("transport must be 'ble' or 'usb'.", "INVALID_ARGUMENT")
+            "bluetoothClassic" -> call.resolve(JSObject().apply {
+                put("devices", toBtClassicDeviceListPayload(classicConnection.getBondedDevices(readBtClassicScanConfig(call))))
+            })
+            else -> call.reject("transport must be 'ble', 'usb', or 'bluetoothClassic'.", "INVALID_ARGUMENT")
         }
     }
 
@@ -140,7 +170,8 @@ class ThermalPrinterPlugin : Plugin() {
         when (call.getString("transport")) {
             null, "ble" -> connectBle(call)
             "usb" -> connectUsb(call)
-            else -> call.reject("transport must be 'ble' or 'usb'.", "INVALID_ARGUMENT")
+            "bluetoothClassic" -> connectBtClassic(call)
+            else -> call.reject("transport must be 'ble', 'usb', or 'bluetoothClassic'.", "INVALID_ARGUMENT")
         }
     }
 
@@ -151,12 +182,20 @@ class ThermalPrinterPlugin : Plugin() {
             usbConnection.disconnect { call.resolve(currentStatusPayload()) }
             return
         }
+        if (classicConnection.status().connectionState != "disconnected") {
+            classicConnection.disconnect { call.resolve(currentStatusPayload()) }
+            return
+        }
         bleConnection.disconnect { call.resolve(currentStatusPayload()) }
     }
 
     @PluginMethod
     fun isConnected(call: PluginCall) {
-        call.resolve(JSObject().apply { put("connected", bleConnection.isConnected() || usbConnection.isConnected()) })
+        call.resolve(
+            JSObject().apply {
+                put("connected", bleConnection.isConnected() || usbConnection.isConnected() || classicConnection.isConnected())
+            },
+        )
     }
 
     @PluginMethod
@@ -181,6 +220,17 @@ class ThermalPrinterPlugin : Plugin() {
             }
             usbConnection.isConnected() -> {
                 usbConnection.write(
+                    payload,
+                    onSuccess = { written -> call.resolve(JSObject().apply { put("written", written) }) },
+                    onError = { message, code -> call.reject(message, code) },
+                )
+            }
+            classicConnection.isConnected() -> {
+                if (!hasConnectPermissions()) {
+                    call.reject("Bluetooth permission denied.", "PERMISSION_DENIED")
+                    return
+                }
+                classicConnection.write(
                     payload,
                     onSuccess = { written -> call.resolve(JSObject().apply { put("written", written) }) },
                     onError = { message, code -> call.reject(message, code) },
@@ -230,6 +280,27 @@ class ThermalPrinterPlugin : Plugin() {
         startBleConnect(call, config)
     }
 
+    @PermissionCallback
+    private fun classicScanPermissionCallback(call: PluginCall) {
+        if (!hasConnectPermissions()) {
+            call.reject("Bluetooth connect permission denied.", "PERMISSION_DENIED")
+            return
+        }
+        call.resolve(JSObject().apply {
+            put("devices", toBtClassicDeviceListPayload(classicConnection.getBondedDevices(readBtClassicScanConfig(call))))
+        })
+    }
+
+    @PermissionCallback
+    private fun classicConnectPermissionCallback(call: PluginCall) {
+        if (!hasConnectPermissions()) {
+            call.reject("Bluetooth connect permission denied.", "PERMISSION_DENIED")
+            return
+        }
+        val config = readBtClassicConnectConfig(call) ?: return
+        startBtClassicConnect(call, config)
+    }
+
     private fun scanBle(call: PluginCall) {
         if (!bleScanner.isSupported()) {
             call.reject("Bluetooth LE is not available on this device.", "UNSUPPORTED_OPERATION")
@@ -256,11 +327,34 @@ class ThermalPrinterPlugin : Plugin() {
         call.resolve(JSObject().apply { put("devices", toUsbDeviceListPayload(usbMonitor.getDevices(config))) })
     }
 
+    private fun scanBtClassic(call: PluginCall) {
+        if (!classicConnection.isSupported()) {
+            call.reject("Bluetooth is not available on this device.", "UNSUPPORTED_OPERATION")
+            return
+        }
+        if (!classicConnection.isBluetoothEnabled()) {
+            call.reject("Bluetooth is disabled.", "UNSUPPORTED_OPERATION")
+            return
+        }
+        finishScan("restarted")
+        if (!hasConnectPermissions()) {
+            requestPermissionForAliases(bleConnectPermissionAliases(), call, "classicScanPermissionCallback")
+            return
+        }
+        call.resolve(JSObject().apply {
+            put("devices", toBtClassicDeviceListPayload(classicConnection.getBondedDevices(readBtClassicScanConfig(call))))
+        })
+    }
+
     private fun connectBle(call: PluginCall) {
         lastTransport = "ble"
         cancelPendingUsbPermissionRequest("USB permission request cancelled.", "CONNECTION_FAILED")
         val usbStatus = usbConnection.status()
         if (usbStatus.connectionState != "disconnected") {
+            call.reject("Disconnect the current printer before connecting another.", "CONNECTION_FAILED")
+            return
+        }
+        if (classicConnection.status().connectionState != "disconnected") {
             call.reject("Disconnect the current printer before connecting another.", "CONNECTION_FAILED")
             return
         }
@@ -280,6 +374,10 @@ class ThermalPrinterPlugin : Plugin() {
         }
         val bleStatus = bleConnection.status()
         if (bleStatus.connectionState != "disconnected") {
+            call.reject("Disconnect the current printer before connecting another.", "CONNECTION_FAILED")
+            return
+        }
+        if (classicConnection.status().connectionState != "disconnected") {
             call.reject("Disconnect the current printer before connecting another.", "CONNECTION_FAILED")
             return
         }
@@ -309,6 +407,39 @@ class ThermalPrinterPlugin : Plugin() {
             return
         }
         mainHandler.postDelayed(usbPermissionTimeoutRunnable, config.timeoutMs.toLong())
+    }
+
+    private fun connectBtClassic(call: PluginCall) {
+        lastTransport = "bluetoothClassic"
+        cancelPendingUsbPermissionRequest("USB permission request cancelled.", "CONNECTION_FAILED")
+        if (!classicConnection.isSupported()) {
+            call.reject("Bluetooth is not available on this device.", "UNSUPPORTED_OPERATION")
+            return
+        }
+        val bleStatus = bleConnection.status()
+        if (bleStatus.connectionState != "disconnected") {
+            call.reject("Disconnect the current printer before connecting another.", "CONNECTION_FAILED")
+            return
+        }
+        val usbStatus = usbConnection.status()
+        if (usbStatus.connectionState != "disconnected") {
+            call.reject("Disconnect the current printer before connecting another.", "CONNECTION_FAILED")
+            return
+        }
+        val config = readBtClassicConnectConfig(call) ?: return
+        if (!hasConnectPermissions()) {
+            requestPermissionForAliases(bleConnectPermissionAliases(), call, "classicConnectPermissionCallback")
+            return
+        }
+        startBtClassicConnect(call, config)
+    }
+
+    private fun startBtClassicConnect(call: PluginCall, config: BtClassicConnectConfig) {
+        classicConnection.connect(
+            config = config,
+            onSuccess = { snapshot -> call.resolve(buildBtClassicStatusPayload(snapshot)) },
+            onError = { message, code -> call.reject(message, code) },
+        )
     }
 
     private fun startScan(call: PluginCall) {
@@ -409,38 +540,31 @@ class ThermalPrinterPlugin : Plugin() {
         if (usbStatus.connectionState != "disconnected") {
             return buildUsbStatusPayload(usbStatus)
         }
+        val classicStatus = classicConnection.status()
+        if (classicStatus.connectionState != "disconnected") {
+            return buildBtClassicStatusPayload(classicStatus)
+        }
         val pendingUsbDevice = pendingUsbPermissionDeviceId?.let { usbMonitor.getDevice(it) }
         if (pendingUsbPermissionCallId != null) {
             return buildUsbStatusPayload(pendingUsbDevice, "connecting")
         }
-        when (lastTransport) {
-            "ble" -> {
-                if (hasBleStatusDetails(bleStatus)) {
-                    return buildBleStatusPayload(bleStatus)
-                }
-                if (hasUsbStatusDetails(usbStatus)) {
-                    return buildUsbStatusPayload(usbStatus)
-                }
-            }
-            "usb" -> {
-                if (hasUsbStatusDetails(usbStatus)) {
-                    return buildUsbStatusPayload(usbStatus)
-                }
-                if (hasBleStatusDetails(bleStatus)) {
-                    return buildBleStatusPayload(bleStatus)
-                }
-            }
-            else -> {
-                if (hasBleStatusDetails(bleStatus)) {
-                    return buildBleStatusPayload(bleStatus)
-                }
-                if (hasUsbStatusDetails(usbStatus)) {
-                    return buildUsbStatusPayload(usbStatus)
-                }
-            }
+        val ordered = when (lastTransport) {
+            "ble" -> listOf(bleStatus.detailsOrNull(), usbStatus.detailsOrNull(), classicStatus.detailsOrNull())
+            "usb" -> listOf(usbStatus.detailsOrNull(), bleStatus.detailsOrNull(), classicStatus.detailsOrNull())
+            "bluetoothClassic" -> listOf(classicStatus.detailsOrNull(), bleStatus.detailsOrNull(), usbStatus.detailsOrNull())
+            else -> listOf(bleStatus.detailsOrNull(), usbStatus.detailsOrNull(), classicStatus.detailsOrNull())
         }
-        return buildDisconnectedStatusPayload()
+        return ordered.firstNotNullOfOrNull { it } ?: buildDisconnectedStatusPayload()
     }
+
+    private fun BleConnectionSnapshot.detailsOrNull(): JSObject? =
+        if (hasBleStatusDetails(this)) buildBleStatusPayload(this) else null
+
+    private fun UsbConnectionSnapshot.detailsOrNull(): JSObject? =
+        if (hasUsbStatusDetails(this)) buildUsbStatusPayload(this) else null
+
+    private fun BtClassicConnectionSnapshot.detailsOrNull(): JSObject? =
+        if (hasClassicStatusDetails(this)) buildBtClassicStatusPayload(this) else null
 
     private fun startUsbConnect(
         call: PluginCall,
@@ -532,6 +656,10 @@ class ThermalPrinterPlugin : Plugin() {
     }
 
     private fun hasUsbStatusDetails(snapshot: UsbConnectionSnapshot): Boolean {
+        return snapshot.device != null || snapshot.lastError != null
+    }
+
+    private fun hasClassicStatusDetails(snapshot: BtClassicConnectionSnapshot): Boolean {
         return snapshot.device != null || snapshot.lastError != null
     }
 }

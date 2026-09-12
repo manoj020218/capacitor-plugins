@@ -71,6 +71,29 @@ describe('printer profiles', () => {
     });
   });
 
+  it('creates Bluetooth Classic profiles and maps them to connection options', () => {
+    const device: PrinterDevice = {
+      id: '7E:A8:02:E2:CF:D5',
+      name: 'PSF588',
+      transport: 'bluetoothClassic',
+    };
+
+    const profile = createPrinterProfile(device, { timeoutMs: 8000 });
+    expect(profile).toEqual({
+      id: 'bluetoothClassic:7E:A8:02:E2:CF:D5',
+      name: 'PSF588',
+      transport: 'bluetoothClassic',
+      deviceId: '7E:A8:02:E2:CF:D5',
+      timeoutMs: 8000,
+    });
+
+    expect(profileToConnectionOptions(profile)).toEqual({
+      transport: 'bluetoothClassic',
+      deviceId: '7E:A8:02:E2:CF:D5',
+      timeoutMs: 8000,
+    });
+  });
+
   it('rejects invalid reconnect settings', () => {
     expect(() => normalizePrinterProfile({
       id: 'bad',

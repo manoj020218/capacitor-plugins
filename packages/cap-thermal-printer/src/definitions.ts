@@ -1,6 +1,6 @@
 import type { PluginListenerHandle } from '@capacitor/core';
 
-export type PrinterTransportType = 'ble' | 'usb';
+export type PrinterTransportType = 'ble' | 'usb' | 'bluetoothClassic';
 export type PrinterAlignment = 'left' | 'center' | 'right';
 export type PrinterConnectionState = 'disconnected' | 'connecting' | 'connected' | 'disconnecting' | 'reconnecting';
 export type PrinterPaperWidth = 58 | 80;
@@ -68,7 +68,13 @@ export interface UsbConnectionOptions {
   timeoutMs?: number;
 }
 
-export type PrinterConnectionOptions = BleConnectionOptions | UsbConnectionOptions;
+export interface BluetoothClassicConnectionOptions {
+  transport: 'bluetoothClassic';
+  deviceId: string;
+  timeoutMs?: number;
+}
+
+export type PrinterConnectionOptions = BleConnectionOptions | UsbConnectionOptions | BluetoothClassicConnectionOptions;
 
 export interface PrinterStatus {
   connected: boolean;
@@ -106,7 +112,12 @@ export interface UsbPrinterProfile extends BasePrinterProfile {
   productId?: number;
 }
 
-export type PrinterProfile = BlePrinterProfile | UsbPrinterProfile;
+export interface BluetoothClassicPrinterProfile extends BasePrinterProfile {
+  transport: 'bluetoothClassic';
+  deviceId: string;
+}
+
+export type PrinterProfile = BlePrinterProfile | UsbPrinterProfile | BluetoothClassicPrinterProfile;
 
 export interface ScanStoppedEvent {
   reason: ScanStopReason;

@@ -2,10 +2,11 @@
 
 Reusable Android Capacitor thermal printer plugin for Jenix applications.
 
-It provides one transport-independent TypeScript API over two Android transports:
+It provides one transport-independent TypeScript API over three Android transports:
 
 - BLE thermal printers
 - Android USB host thermal printers
+- Bluetooth Classic (SPP) thermal printers
 
 The plugin keeps ESC/POS composition in TypeScript and keeps native Kotlin focused on device discovery, connection lifecycle, and raw byte transport.
 
@@ -16,7 +17,8 @@ Implemented in this repository:
 - BLE scan with deduplicated discovery and scan-stop events
 - BLE connect, writable characteristic discovery, MTU-aware chunked writes, and bounded reconnect
 - USB enumeration, permission handoff, attach/detach events, connect, and bulk OUT writes
-- Shared raw `number[]` write API for both transports
+- Bluetooth Classic (SPP) bonded-device listing, RFCOMM connect, and blocking raw writes
+- Shared raw `number[]` write API across all three transports
 - ESC/POS helpers for text, feed, cut, cash drawer, QR, and CODE128
 - Printer profile helpers for app-side persistence and reconnection defaults
 - Standalone demo UI under `demo/`
@@ -25,7 +27,6 @@ Not implemented:
 
 - `printImage`
 - Windows native printing
-- Bluetooth Classic
 - TCP/IP printers
 - Web Bluetooth or WebUSB
 
@@ -66,6 +67,7 @@ If you consume the package through `npm pack` or a registry, `demo/` is included
 - `targetSdkVersion 34`
 - Bluetooth LE hardware is optional but required for BLE transport
 - Android USB host support is optional but required for USB transport
+- Classic Bluetooth (BR/EDR) hardware is optional but required for the `bluetoothClassic` transport
 
 Manifest entries already provided by the plugin:
 
@@ -76,6 +78,8 @@ Manifest entries already provided by the plugin:
 - `android.permission.BLUETOOTH_CONNECT` on Android 12+
 - `uses-feature android.hardware.bluetooth_le` as optional
 - `uses-feature android.hardware.usb.host` as optional
+
+`BLUETOOTH_CONNECT`/`BLUETOOTH_SCAN` (bundled under the same runtime permission alias) also cover the `bluetoothClassic` transport; no additional manifest entries are required.
 
 The plugin does not require network permission.
 
@@ -123,7 +127,7 @@ Events:
 interface PrinterDevice {
   id: string;
   name?: string;
-  transport: 'ble' | 'usb';
+  transport: 'ble' | 'usb' | 'bluetoothClassic';
   connected?: boolean;
   permissionGranted?: boolean;
   rssi?: number;
@@ -139,7 +143,7 @@ interface PrinterDevice {
 ```ts
 interface PrinterStatus {
   connected: boolean;
-  transport?: 'ble' | 'usb';
+  transport?: 'ble' | 'usb' | 'bluetoothClassic';
   device?: PrinterDevice;
   connectionState?: 'disconnected' | 'connecting' | 'connected' | 'disconnecting' | 'reconnecting';
   reconnectAttempt?: number;
@@ -155,7 +159,8 @@ interface PrinterStatus {
 
 - BLE profiles can store `deviceId`, `serviceUuid`, `writeCharacteristicUuid`, and bounded reconnect settings.
 - USB profiles can store `deviceId`, `vendorId`, and `productId`.
-- Both profile kinds can store `paperWidth`, `charsPerLine`, and `timeoutMs`.
+- Bluetooth Classic profiles store `deviceId` (the bonded device's MAC address).
+- All profile kinds can store `paperWidth`, `charsPerLine`, and `timeoutMs`.
 
 ## BLE Usage
 
@@ -237,6 +242,35 @@ USB notes:
 - The plugin requests Android USB permission through `connect({ transport: 'usb' })`.
 - Printer candidates are devices exposing a printer-class interface or any bulk OUT endpoint.
 - The plugin prefers printer-class interfaces first and falls back to other bulk OUT interfaces only when needed.
+
+## Bluetooth Classic Usage
+
+Many low-cost ESC/POS printers (including the common PSF588/POS588-style 58mm printers) use classic Bluetooth (BR/EDR) with the Serial Port Profile (SPP) instead of BLE. Pair the printer in Android's system Bluetooth settings first — this transport connects to already-bonded devices, it does not perform its own pairing UI.
+
+List bonded/paired devices:
+
+```ts
+const result = await ThermalPrinter.getDevices({ transport: 'bluetoothClassic' });
+console.log(result.devices);
+```
+
+Connect by device ID (the bonded device's MAC address):
+
+```ts
+await ThermalPrinter.connect({
+  transport: 'bluetoothClassic',
+  deviceId: '7E:A8:02:E2:CF:D5',
+  timeoutMs: 15000,
+});
+```
+
+Bluetooth Classic notes:
+
+- The printer must already be paired/bonded through Android Bluetooth settings; `getDevices({ transport: 'bluetoothClassic' })` only lists bonded devices.
+- Connect opens an RFCOMM socket against the standard SPP UUID (`00001101-0000-1000-8000-00805f9b34fb`).
+- Writes are blocking and run off the main thread; there is no MTU concept, so `chunkSize` is optional and defaults to writing the payload in one call.
+- A disconnect is detected either immediately (Android's ACL disconnect broadcast) or on the next failed write, whichever comes first.
+- Runtime permission alias is the same `ble` alias used for BLE (bundles `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT` on Android 12+).
 
 ## Raw Printing
 
@@ -380,7 +414,7 @@ The minimal manual test UI is in `demo/`:
 - [demo/index.html](demo/index.html)
 - [demo/demo.js](demo/demo.js)
 
-It is intentionally not wired into any existing Jenix application. Use it in a throwaway Capacitor Android shell app when you want a quick integration surface without touching production app routes.
+It is intentionally not wired into any existing Jenix application. Use it in a throwaway Capacitor Android shell app when you want a quick integration surface without touching production app routes. The demo has separate panels for BLE, USB, and Bluetooth Classic (bonded-device listing and connect).
 
 ## Hardware Compatibility Notes
 
@@ -425,8 +459,8 @@ Android library compile passed. The Gradle run reported only deprecation warning
 - Android only
 - No image printing yet
 - No Windows support
-- No Bluetooth Classic support
 - No network printer support
 - No browser Web Bluetooth or WebUSB implementation
 - No automatic code-page negotiation
+- Bluetooth Classic requires the printer to already be paired via Android system Bluetooth settings; the plugin does not drive its own pairing flow
 - Hardware verification is still manual

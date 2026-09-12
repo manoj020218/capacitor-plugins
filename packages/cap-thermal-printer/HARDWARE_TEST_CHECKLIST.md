@@ -21,6 +21,18 @@ Use the standalone demo in `demo/` or an equivalent throwaway Capacitor shell wh
 - Enable auto reconnect and verify retries remain bounded and status counters update.
 - Deny permission and verify the plugin returns `PERMISSION_DENIED`.
 
+## Bluetooth Classic
+
+- Pair the printer in Android system Bluetooth settings first (this transport does not pair on its own).
+- Call `getDevices({ transport: 'bluetoothClassic' })` and verify the bonded printer appears.
+- Connect by `deviceId` (the bonded MAC address) and verify `connected` plus `getStatus()`.
+- Print a short raw receipt and verify output starts immediately.
+- Print a long raw receipt and verify ordering stays correct across the blocking write.
+- Disconnect manually and verify `disconnected` plus `isConnected() === false`.
+- Power off or move the printer out of range while connected and verify a `disconnected`/`connectionError` event arrives (via the ACL-disconnect broadcast) without needing another print attempt first.
+- Attempt to connect to a MAC address that was never paired and verify a clean `CONNECTION_FAILED` rejection (no crash).
+- Deny the Bluetooth runtime permission and verify the plugin returns `PERMISSION_DENIED`.
+
 ## USB
 
 - Attach a USB printer and verify enumeration returns vendor/product IDs.
