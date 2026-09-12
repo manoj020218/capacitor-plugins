@@ -1,5 +1,5 @@
 {
-  "name": "@jenix/cap-thermal-printer",
+  "name": "@jenixindia/cap-thermal-printer",
   "version": "0.1.1",
   "description": "Reusable BLE and USB ESC/POS thermal printer bridge for Jenix apps.",
   "type": "module",
@@ -23,7 +23,8 @@
     "build": "rimraf dist && tsc -p tsconfig.json",
     "test": "vitest run",
     "verify": "node --check demo/demo.js && node --check demo/receipt.js && npm run build && npm run test",
-    "prepack": "npm run verify"
+    "prepack": "npm run verify",
+    "prepare": "npm run build"
   },
   "peerDependencies": {
     "@capacitor/core": ">=7.0.0"

@@ -18,7 +18,7 @@ Completed phase:
 
 Important architecture decisions:
 
-- Package name stays `@jenix/cap-thermal-printer` and Capacitor plugin name stays `JenixThermalPrinter`.
+- Package name stays `@jenixindia/cap-thermal-printer` and Capacitor plugin name stays `JenixThermalPrinter`.
 - ESC/POS composition stays in TypeScript while Android Kotlin stays transport-focused.
 - BLE and USB share the same public raw `number[]` write contract and status model.
 - BLE discovery remains UUID-agnostic by default and only prefers caller-supplied UUID hints when available.
@@ -38,7 +38,7 @@ Files added or changed:
 
 Current build status:
 
-- `npm run verify --workspace @jenix/cap-thermal-printer` passed on 2026-09-03.
+- `npm run verify --workspace @jenixindia/cap-thermal-printer` passed on 2026-09-03.
 - `cmd /c gradlew.bat :jenix-cap-thermal-printer:assembleDebug` from `APK/mobile/android` passed on 2026-09-03.
 - `cmd /c gradlew.bat :app:assembleDebug` from the Smart POS Android app passed on 2026-09-12.
 - BLE printing was verified on-device with a PSF588/SR588 printer advertised as `CP437` on 2026-09-12. The connection selected the Microchip/ISSC Transparent UART RX characteristic and successfully printed a 540-byte receipt using acknowledged, paced 20-byte writes.

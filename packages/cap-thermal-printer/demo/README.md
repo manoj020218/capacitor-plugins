@@ -1,6 +1,6 @@
 # Thermal Printer Demo
 
-This folder contains the minimal Phase 9 demo UI for `@jenix/cap-thermal-printer`.
+This folder contains the minimal Phase 9 demo UI for `@jenixindia/cap-thermal-printer`.
 
 It is intentionally self-contained:
 

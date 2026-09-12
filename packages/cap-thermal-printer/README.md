@@ -1,4 +1,4 @@
-# @jenix/cap-thermal-printer
+# @jenixindia/cap-thermal-printer
 
 Reusable Android Capacitor thermal printer plugin for Jenix applications.
 
@@ -38,7 +38,7 @@ For this monorepo, install it as a local workspace dependency:
 ```json
 {
   "dependencies": {
-    "@jenix/cap-thermal-printer": "file:../../EMS/Plugins/cap-thermal-printer"
+    "@jenixindia/cap-thermal-printer": "file:../../EMS/Plugins/cap-thermal-printer"
   }
 }
 ```
@@ -46,7 +46,7 @@ For this monorepo, install it as a local workspace dependency:
 If the package is later packed or published internally, install it like any other dependency:
 
 ```bash
-npm install @jenix/cap-thermal-printer
+npm install @jenixindia/cap-thermal-printer
 ```
 
 Then sync Android:
@@ -162,7 +162,7 @@ interface PrinterStatus {
 Scan:
 
 ```ts
-import { ThermalPrinter } from '@jenix/cap-thermal-printer';
+import { ThermalPrinter } from '@jenixindia/cap-thermal-printer';
 
 const result = await ThermalPrinter.scan({
   transport: 'ble',
@@ -267,7 +267,7 @@ await ThermalPrinter.write({
 `EscPosBuilder` keeps receipt composition in TypeScript:
 
 ```ts
-import { EscPosBuilder, ThermalPrinter } from '@jenix/cap-thermal-printer';
+import { EscPosBuilder, ThermalPrinter } from '@jenixindia/cap-thermal-printer';
 
 const receipt = new EscPosBuilder()
   .initialize()
@@ -313,7 +313,7 @@ import {
   ThermalPrinter,
   createPrinterProfile,
   profileToConnectionOptions,
-} from '@jenix/cap-thermal-printer';
+} from '@jenixindia/cap-thermal-printer';
 
 const profile = createPrinterProfile(device, {
   paperWidth: 58,
@@ -416,9 +416,9 @@ Recommended approach:
 
 Verified on September 3, 2026:
 
-- `npm run build --workspace @jenix/cap-thermal-printer`
-- `npm run test --workspace @jenix/cap-thermal-printer`
-- `npm run verify --workspace @jenix/cap-thermal-printer`
+- `npm run build --workspace @jenixindia/cap-thermal-printer`
+- `npm run test --workspace @jenixindia/cap-thermal-printer`
+- `npm run verify --workspace @jenixindia/cap-thermal-printer`
 - `node --check demo/demo.js`
 - `node --check demo/receipt.js`
 - `cmd /c gradlew.bat :jenix-cap-thermal-printer:assembleDebug` from `APK/mobile/android`
