@@ -4,6 +4,10 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import java.util.UUID
 
+private val TRANSPARENT_UART_SERVICE_UUID = UUID.fromString("49535343-fe7d-4ae5-8fa9-9fafd205e455")
+private val TRANSPARENT_UART_RX_UUID = UUID.fromString("49535343-8841-43f4-a8d4-ecbe34729bb3")
+private val TRANSPARENT_UART_TX_UUID = UUID.fromString("49535343-1e4d-4bd9-ba61-23c647249616")
+
 data class BleResolvedCharacteristic(
     val serviceUuid: String,
     val characteristic: BluetoothGattCharacteristic,
@@ -24,8 +28,15 @@ fun findBleWriteCharacteristic(
         }
         return null
     }
+    candidates.firstOrNull { it.uuid == TRANSPARENT_UART_SERVICE_UUID }?.let { service ->
+        listOf(TRANSPARENT_UART_RX_UUID, TRANSPARENT_UART_TX_UUID).forEach { uuid ->
+            service.getCharacteristic(uuid)?.takeIf(::supportsBleWrite)?.let {
+                return BleResolvedCharacteristic(service.uuid.toString(), it)
+            }
+        }
+    }
     candidates.forEach { service ->
-        service.characteristics.firstOrNull(::prefersWriteWithoutResponse)?.let {
+        service.characteristics.firstOrNull(::supportsAcknowledgedWrite)?.let {
             return BleResolvedCharacteristic(service.uuid.toString(), it)
         }
         service.characteristics.firstOrNull(::supportsBleWrite)?.let {
@@ -49,20 +60,15 @@ fun resolveBleWriteType(characteristic: BluetoothGattCharacteristic): Int {
     }
 }
 
-fun resolveBleChunkSize(mtu: Int, requestedChunkSize: Int?): Int {
-    val maxSize = (mtu - 3).coerceAtLeast(20)
-    return requestedChunkSize?.coerceIn(1, maxSize) ?: maxSize
-}
-
 private fun supportsBleWrite(characteristic: BluetoothGattCharacteristic): Boolean {
     return prefersWriteWithoutResponse(characteristic) ||
-        characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0
-}
-
-private fun prefersWriteWithoutResponse(characteristic: BluetoothGattCharacteristic): Boolean {
-    return characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0
+        supportsAcknowledgedWrite(characteristic)
 }
 
 private fun supportsAcknowledgedWrite(characteristic: BluetoothGattCharacteristic): Boolean {
     return characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0
+}
+
+private fun prefersWriteWithoutResponse(characteristic: BluetoothGattCharacteristic): Boolean {
+    return characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0
 }

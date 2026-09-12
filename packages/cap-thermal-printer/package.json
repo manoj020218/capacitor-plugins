@@ -1,26 +1,39 @@
 {
   "name": "@jenix/cap-thermal-printer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reusable BLE and USB ESC/POS thermal printer bridge for Jenix apps.",
+  "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "files": [
-    "android/",
+    "android/build.gradle",
+    "android/src/main/",
     "dist/",
     "demo/"
   ],
   "scripts": {
     "build": "rimraf dist && tsc -p tsconfig.json",
     "test": "vitest run",
-    "verify": "node --check demo/demo.js && node --check demo/receipt.js && npm run build && npm run test"
+    "verify": "node --check demo/demo.js && node --check demo/receipt.js && npm run build && npm run test",
+    "prepack": "npm run verify"
   },
   "peerDependencies": {
     "@capacitor/core": ">=7.0.0"
   },
   "devDependencies": {
     "@capacitor/android": "^7.0.0",
-    "@capacitor/core": "^7.0.0"
+    "@capacitor/core": "^7.0.0",
+    "rimraf": "^6.1.2",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
   },
   "capacitor": {
     "android": {

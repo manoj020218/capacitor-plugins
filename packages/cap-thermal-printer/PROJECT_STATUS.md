@@ -1,6 +1,6 @@
 # Thermal Printer Status
 
-Updated: 2026-09-03
+Updated: 2026-09-12
 
 Completed phase:
 
@@ -40,8 +40,10 @@ Current build status:
 
 - `npm run verify --workspace @jenix/cap-thermal-printer` passed on 2026-09-03.
 - `cmd /c gradlew.bat :jenix-cap-thermal-printer:assembleDebug` from `APK/mobile/android` passed on 2026-09-03.
+- `cmd /c gradlew.bat :app:assembleDebug` from the Smart POS Android app passed on 2026-09-12.
+- BLE printing was verified on-device with a PSF588/SR588 printer advertised as `CP437` on 2026-09-12. The connection selected the Microchip/ISSC Transparent UART RX characteristic and successfully printed a 540-byte receipt using acknowledged, paced 20-byte writes.
 - Gradle emitted deprecation warnings from older Android and Capacitor APIs, but no compile errors remained.
-- Manual hardware verification is still pending; use `HARDWARE_TEST_CHECKLIST.md`.
+- Broader manual coverage (reconnect, long receipts, permission denial, and every helper command) remains; use `HARDWARE_TEST_CHECKLIST.md`.
 
 Next phase:
 

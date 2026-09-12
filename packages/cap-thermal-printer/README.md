@@ -200,7 +200,12 @@ BLE notes:
 
 - Runtime scan permission alias is `ble` on Android 12+ and `location` on Android 11 and below.
 - Discovered devices are deduplicated per scan session.
-- Writes are queued natively and chunk size is derived from negotiated MTU when available.
+- Writes are queued natively. The default BLE packet size is a conservative 20 bytes with a short
+  inter-packet delay to avoid overrunning UART-backed thermal-printer modules; callers can still
+  provide `chunkSize` for hardware-specific tuning.
+- Characteristics supporting acknowledged writes use them in preference to write-without-response.
+- Microchip/ISSC Transparent UART services (`49535343-...`) prefer their documented RX data
+  characteristic instead of relying on generic GATT characteristic ordering.
 - Reconnect is opt-in and bounded. There is no infinite retry loop.
 
 ## USB Usage
@@ -419,6 +424,13 @@ Verified on September 3, 2026:
 - `cmd /c gradlew.bat :jenix-cap-thermal-printer:assembleDebug` from `APK/mobile/android`
 
 Android library compile passed. The Gradle run reported only deprecation warnings from older Android and Capacitor APIs already used in the current implementation.
+
+Hardware verified on September 12, 2026:
+
+- BLE receipt printing on a PSF588/SR588 printer advertised as `CP437`
+- Microchip/ISSC Transparent UART RX characteristic selection
+- Acknowledged, paced 20-byte transfer of a 540-byte receipt
+- `:app:assembleDebug` and on-device APK replacement install
 
 ## Known Limitations
 

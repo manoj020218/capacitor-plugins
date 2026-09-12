@@ -6,14 +6,18 @@ import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 
 private const val BLE_DEFAULT_MTU = 23
 private const val BLE_REQUESTED_MTU = 247
 private const val BLE_WRITE_TIMEOUT_MS = 10000L
 private const val BLE_DISCONNECT_TIMEOUT_MS = 2000L
+private const val BLE_LOG_TAG = "JenixThermalPrinter"
 
 interface BleConnectionListener {
     fun onConnected(snapshot: BleConnectionSnapshot)
@@ -37,6 +41,9 @@ class BlePrinterConnection(
     private val writeSession = BleWriteSession()
     private val connectTimeout = Runnable { failConnectionAttempt("BLE connection timed out.", "CONNECTION_TIMEOUT") }
     private val writeTimeout = Runnable { failActiveWrite("BLE write timed out.", "WRITE_FAILED") }
+    private val continueWriteRunnable = Runnable {
+        if (writeSession.hasActive()) writeNextChunk() else pumpWriteQueue()
+    }
     private val disconnectTimeout = Runnable { finishDisconnect(notify = device?.connected == true) }
     private val reconnectRunnable = Runnable { attemptReconnect() }
     private var activeConnect: PendingConnect? = null
@@ -156,12 +163,23 @@ class BlePrinterConnection(
             onSuccess(0)
             return
         }
+        Log.d(
+            BLE_LOG_TAG,
+            "BLE write queued: bytes=${payload.bytes.size}, mtu=$mtu, chunkSize=${resolveBleChunkSize(mtu, payload.chunkSize)}",
+        )
         writeSession.enqueue(payload, mtu, onSuccess, onError)
         pumpWriteQueue()
     }
 
     private fun openGatt(device: BluetoothDevice): BluetoothGatt? {
-        return device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+        return device.connectGatt(
+            context,
+            false,
+            callback,
+            BluetoothDevice.TRANSPORT_LE,
+            BluetoothDevice.PHY_LE_1M_MASK,
+            handler,
+        )
     }
 
     private fun failConnectionAttempt(message: String, code: String) {
@@ -254,6 +272,11 @@ class BlePrinterConnection(
             serviceUuid = resolved.serviceUuid,
             writeCharacteristicUuid = resolved.characteristic.uuid.toString(),
         )
+        Log.d(
+            BLE_LOG_TAG,
+            "BLE data path: service=${resolved.serviceUuid}, characteristic=${resolved.characteristic.uuid}, " +
+                "writeType=${resolveBleWriteType(resolved.characteristic)}",
+        )
         connectConfig = null
         reconnectAttempt = 0
         lastError = null
@@ -331,24 +354,41 @@ class BlePrinterConnection(
         val activeGatt = gatt ?: return failActiveWrite("BLE connection was lost before writing.", "NOT_CONNECTED")
         val characteristic = writeCharacteristic ?: return failActiveWrite("No writable BLE characteristic is available.", "NO_WRITABLE_CHARACTERISTIC")
         val chunk = writeSession.currentChunk() ?: return completeActiveWrite()
-        characteristic.writeType = resolveBleWriteType(characteristic)
-        characteristic.value = chunk
         handler.removeCallbacks(writeTimeout)
-        if (!activeGatt.writeCharacteristic(characteristic)) {
+        if (!startCharacteristicWrite(activeGatt, characteristic, chunk)) {
             failActiveWrite("BLE write could not be started.", "WRITE_FAILED")
             return
         }
         handler.postDelayed(writeTimeout, BLE_WRITE_TIMEOUT_MS)
     }
 
+    @SuppressLint("MissingPermission")
+    @Suppress("DEPRECATION")
+    private fun startCharacteristicWrite(
+        activeGatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        chunk: ByteArray,
+    ): Boolean {
+        val writeType = resolveBleWriteType(characteristic)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            activeGatt.writeCharacteristic(characteristic, chunk, writeType) == BluetoothStatusCodes.SUCCESS
+        } else {
+            characteristic.writeType = writeType
+            characteristic.value = chunk
+            activeGatt.writeCharacteristic(characteristic)
+        }
+    }
+
     private fun completeActiveWrite() {
         handler.removeCallbacks(writeTimeout)
+        handler.removeCallbacks(continueWriteRunnable)
         writeSession.finishCurrent()
         pumpWriteQueue()
     }
 
     private fun failActiveWrite(message: String, code: String) {
         handler.removeCallbacks(writeTimeout)
+        handler.removeCallbacks(continueWriteRunnable)
         writeSession.rejectAll(message, code)
     }
 
@@ -361,6 +401,7 @@ class BlePrinterConnection(
     private fun cancelTimers() {
         handler.removeCallbacks(connectTimeout)
         handler.removeCallbacks(writeTimeout)
+        handler.removeCallbacks(continueWriteRunnable)
         handler.removeCallbacks(disconnectTimeout)
         handler.removeCallbacks(reconnectRunnable)
     }
@@ -422,6 +463,8 @@ class BlePrinterConnection(
             failActiveWrite("BLE write failed with status $status.", "WRITE_FAILED")
             return
         }
-        if (writeSession.advanceCurrent()) writeNextChunk() else pumpWriteQueue()
+        writeSession.advanceCurrent()
+        handler.removeCallbacks(continueWriteRunnable)
+        handler.postDelayed(continueWriteRunnable, BLE_INTER_CHUNK_DELAY_MS)
     }
 }
